@@ -1,0 +1,102 @@
+name: Release
+run-name: "release version ${{ github.head_ref }}"
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  packages: write
+  id-token: write
+
+jobs:
+  code-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Retrieve secret from Vault
+        id: vault
+        uses: hashicorp/vault-action@v3.0.0
+        with:
+          url: ${{ secrets.VAULT_ADDR_NONPROD }}
+          method: jwt
+          path: gha
+          role: ${{ secrets.VAULT_ROLE_NONPROD }}
+          namespace: ${{ secrets.VAULT_NAMESPACE_NONPROD }}
+          secrets: |
+            secrets/data/github/ptc-github app_id | APP_ID ;
+            secrets/data/github/ptc-github app_private_key | APP_PRIVATE_KEY ;
+
+      - name: Generate token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ steps.vault.outputs.APP_ID }}
+          private-key: ${{ steps.vault.outputs.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout actions
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/.github
+          token: ${{ steps.app-token.outputs.token }}
+          path: ./.github
+
+      - name: Code scan
+        uses: ./.github/actions/code-scan
+        with:
+          aqua-key: ${{ secrets.AQUA_KEY }}
+          aqua-secret: ${{ secrets.AQUA_SECRET }}
+          aqua-username: ${{ secrets.AQUA_USERNAME }}
+          aqua-password: ${{ secrets.AQUA_PASSWORD }}
+          review: false
+
+  release:
+    name: Release
+    needs: ["code-scan"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve secret from Vault
+        id: vault
+        uses: hashicorp/vault-action@v3.0.0
+        with:
+          url: ${{ secrets.VAULT_ADDR_NONPROD }}
+          method: jwt
+          path: gha
+          role: ${{ secrets.VAULT_ROLE_NONPROD }}
+          namespace: ${{ secrets.VAULT_NAMESPACE_NONPROD }}
+          secrets: |
+            secrets/data/github/ptc-github app_id | APP_ID ;
+            secrets/data/github/ptc-github app_private_key | APP_PRIVATE_KEY ;
+
+      - name: Generate token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ steps.vault.outputs.APP_ID }}
+          private-key: ${{ steps.vault.outputs.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout actions
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/.github
+          token: ${{ steps.app-token.outputs.token }}
+          path: ./.github
+
+      - name: Create Release
+        uses: ./.github/actions/release
+        with:
+          gh_token: ${{ steps.app-token.outputs.token }}
