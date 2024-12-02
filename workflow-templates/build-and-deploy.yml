@@ -1,5 +1,5 @@
 name: Build & Deploy Production
-run-name: build & deploy ${{ github.repository }}
+
 on:
   push:
     tags:
