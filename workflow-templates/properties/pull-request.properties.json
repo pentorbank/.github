@@ -1,5 +1,6 @@
 {
-  "name": "PullRequest",
+  "name": "Pull Request",
+  "creator": "ptc-precharat-chu",
   "description": "Lint and Code scan workflows.",
   "categories": [
     "Continuous integration",
