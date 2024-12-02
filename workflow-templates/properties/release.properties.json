@@ -1,6 +1,7 @@
 {
   "name": "Release",
   "creator": "ptc-precharat-chu",
+  "iconName": "release",
   "description": "Release workflows.",
   "categories": [
     "Continuous integration"

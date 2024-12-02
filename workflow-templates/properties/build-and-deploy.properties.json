@@ -1,9 +1,9 @@
 {
   "name": "Build & Deploy",
+  "creator": "ptc-precharat-chu",
+  "iconName": "build-and-deploy",
   "description": "Build container and deploy ArgoCD.",
   "categories": [
-    "Continuous integration",
-    "Dockerfile",
     "Deployment"
   ]
 }
