@@ -1,0 +1,37 @@
+name: "Lint pull request"
+description: "Action lint pull request title"
+inputs:
+  gh_token:
+    description: "github app token"
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check PR
+      id: lint-pr-title
+      uses: amannn/action-semantic-pull-request@v5.5.2
+      env:
+        GITHUB_TOKEN: ${{ inputs.gh_token }}
+
+    - name: Add PR error comment
+      uses: marocchino/sticky-pull-request-comment@v2.9.0
+      if: always() && (steps.lint-pr-title.outputs.error_message != null)
+      with:
+        header: pr-title-lint-error
+        message: |
+          We require pull request titles to follow the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/) and it looks like your proposed title needs to be adjusted.
+
+          Details:
+
+          ```
+          ${{ steps.lint-pr-title.outputs.error_message }}
+          ```
+
+    - name: Delete PR error comment
+      uses: marocchino/sticky-pull-request-comment@v2.9.0
+      if: ${{ steps.lint_pr_title.outputs.error_message == null }}
+      with:
+        header: pr-title-lint-error
+        delete: true

@@ -1,0 +1,56 @@
+name: "Argocd Sync"
+description: "Action patch and sync with ArgoCD"
+inputs:
+  gh_token:
+    description: "github app token"
+    required: true
+  repository:
+    description: "gitops repository"
+    required: true
+  bot-username:
+    description: "github app bot user name"
+    required: true
+  bot-email:
+    description: "github app bot user email"
+    required: true
+  service-name:
+    description: "service name"
+    required: true
+  image-tag:
+    description: "image tag version"
+    required: true
+  path:
+    description: "gitops deployment path"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        repository: "${{ github.repository_owner }}/${{ inputs.repository }}"
+        ref: main
+        token: ${{ inputs.gh_token }}
+        path: ${{ inputs.repository }}
+
+    - name: Git config
+      shell: bash
+      working-directory: ${{ inputs.repository }}
+      run: |
+        git config --global user.name "${{ inputs.bot-username }}"
+        git config --global user.email "${{ inputs.bot-email }}"
+
+    - name: Patch deployment tag
+      shell: bash
+      working-directory: ${{ inputs.repository }}
+      run: |
+        yq e '.images[0].newTag="${{ inputs.image-tag }}"' -i "${{ inputs.path }}"
+
+    - name: Git commit and push
+      shell: bash
+      working-directory: ${{ inputs.repository }}
+      run: |
+        git add .
+        git commit -m "feat(${{ inputs.service-name }}): auto patch tag ${{ inputs.image-tag }}"
+        git push

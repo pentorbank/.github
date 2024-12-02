@@ -1,0 +1,122 @@
+name: "Code Scan"
+description: "Action code security scan"
+inputs:
+  gh_token:
+    description: "Github token"
+    default: ${{ github.token }}
+  aqua-key:
+    description: "aquasec key"
+    required: true
+  aqua-secret:
+    description: "aquasec secret"
+    required: true
+  aqua-url:
+    description: "aqua url see on github integration Aquasec"
+    required: false
+    default: "https://api.asia-1.supply-chain.cloud.aquasec.com"
+  cspm-url:
+    description: "cspm url see on github integration Aquasec"
+    required: false
+    default: "https://asia-1.api.cloudsploit.com"
+  aqua-username:
+    description: "aquasec username"
+    required: true
+  aqua-password:
+    description: "aquasec password"
+    required: true
+  scanners:
+    description: "comma-separated list of what security issues to detect (vuln,misconfig,secret,license) (default [vuln,secret])"
+    required: false
+    default: "vuln,secret"
+  severity:
+    description: "severities of vulnerabilities to be displayed [UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL]"
+    required: false
+    default: "HIGH,CRITICAL"
+  db-repository:
+    description: "OCI repository(ies) to retrieve trivy-db in order of priority (default [mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2])"
+    required: false
+    default: "registry.aquasec.com/trivy-db:2"
+  checks-bundle-repository:
+    description: "OCI registry URL to retrieve checks bundle from (default 'ghcr.io/aquasecurity/trivy-checks:1')"
+    required: false
+    default: "registry.aquasec.com/trivy-checks:1"
+  java-db-repository:
+    description: "OCI repository(ies) to retrieve trivy-java-db in order of priority (default [mirror.gcr.io/aquasec/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1])"
+    required: false
+    default: "registry.aquasec.com/trivy-java-db:1"
+  exit-code:
+    description: "specify exit code when any security issues are found"
+    required: false
+    default: "1"
+  format:
+    description: "format (table,json,template,sarif,cyclonedx,spdx,spdx-json,github,cosign-vuln) (default sarif)"
+    required: false
+    default: "sarif"
+  output:
+    description: "output file name"
+    required: false
+    default: "trivy-report.sarif"
+  review:
+    description: "enable reviewdog pr check"
+    required: false
+    default: "true"
+  artifact:
+    description: "enable upload artifact"
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Reviewdog
+      uses: reviewdog/action-setup@v1.3.0
+
+    - name: Run Aquasec code scanner
+      id: code-scan
+      uses: docker://aquasec/aqua-scanner
+      with:
+        args: |
+          trivy fs \
+            --scanners ${{ inputs.scanners }} \
+            --severity ${{ inputs.severity }} \
+            --sast \
+            --reachability \
+            --db-repository=${{ inputs.db-repository }} \
+            --checks-bundle-repository=${{ inputs.checks-bundle-repository }} \
+            --java-db-repository=${{ inputs.java-db-repository }} \
+            --exit-code ${{ inputs.exit-code }} \
+            --format ${{ inputs.format }} \
+            --skip-dirs "./.github/actions" \
+            --output ${{ inputs.output }} \
+            .
+      env:
+        AQUA_KEY: ${{ inputs.aqua-key }}
+        AQUA_SECRET: ${{ inputs.aqua-secret }}
+        GITHUB_TOKEN: ${{ inputs.gh_token }}
+        AQUA_URL: ${{ inputs.aqua-url }}
+        CSPM_URL: ${{ inputs.cspm-url }}
+        TRIVY_RUN_AS_PLUGIN: "aqua"
+        TRIVY_USERNAME: ${{ inputs.aqua-username }}
+        TRIVY_PASSWORD: ${{ inputs.aqua-password }}
+        # For http/https proxy configuration add env vars: HTTP_PROXY/HTTPS_PROXY, CA-CRET (path to CA certificate)
+
+    - name: Reviewdog Github check
+      shell: bash
+      if: ${{ inputs.artifact == 'true' && always() }}
+      run: |
+        cat trivy-report.sarif | reviewdog -f="sarif" \
+          -name="checklist" \
+          -reporter="github-pr-check" \
+          -level="error" \
+          -fail-level="error" \
+          -filter-mode="nofilter"
+      env:
+        REVIEWDOG_GITHUB_API_TOKEN: ${{ inputs.gh_token }}
+
+    - name: Upload vulnerability scan results
+      if: ${{ inputs.artifact == 'true' && failure() && steps.code-scan.conclusion == 'failure' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-report
+        path: ${{ inputs.output }}
+        retention-days: 1

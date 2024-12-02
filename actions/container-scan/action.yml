@@ -1,0 +1,43 @@
+name: "Contianer Scan"
+description: "Action container image security scan"
+inputs:
+  image-tag:
+    description: "container image tag"
+    required: true
+  aqua-username:
+    description: "aquasec username"
+    required: true
+  aqua-password:
+    description: "aquasec password"
+    required: true
+  aqua-scanner-token:
+    description: "aquasec scanner token"
+    required: true
+  aqua-scanner-host:
+    description: "aquasec scanner host"
+    required: true
+  output:
+    description: "output file name"
+    required: false
+    default: "image-scanner-report.sarif"
+  artifact:
+    description: "enable upload artifact"
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Run Aquasec code scanner
+      id: container-scan
+      uses: docker://registry.aquasec.com/scanner:2411.1.21
+      with:
+        args: "scan ${{ inputs.image-tag }} --token ${{ inputs.aqua-scanner-token }} --host ${{ inputs.aqua-scanner-host }} --local --sarif --sariffile ${{ inputs.output }}"
+
+    - name: Upload vulnerability scan results
+      if: ${{ inputs.artifact == 'true' && failure() && steps.container-scan.conclusion == 'failure' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: image-scanner-report
+        path: ${{ inputs.output }}
+        retention-days: 1

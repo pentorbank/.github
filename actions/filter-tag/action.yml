@@ -1,0 +1,32 @@
+name: "Filter Tag"
+description: "Action filter and get tag"
+outputs:
+  tag:
+    description: "tag version"
+    value: ${{ steps.set-tag.outputs.tag }}
+runs:
+  using: composite
+  steps:
+    - name: Get short commit sha
+      if: ${{ github.ref_type == 'branch' }}
+      uses: benjlevesque/short-sha@v3.0
+      id: short-sha
+      with:
+        length: 7
+
+    - name: Get current git tag
+      if: ${{ github.ref_type == 'tag' }}
+      uses: devops-actions/action-get-tag@v1.0.3
+      id: tag
+      with:
+        strip_v: true
+
+    - name: "Set output tag version"
+      id: set-tag
+      shell: bash
+      run: |
+        if [ "${{ github.ref_type }}" = "tag" ]; then
+          echo "tag=${{ steps.tag.outputs.tag }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "tag=${{ steps.short-sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
+        fi

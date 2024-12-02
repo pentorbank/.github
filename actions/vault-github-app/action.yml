@@ -1,0 +1,81 @@
+name: "Vault Generate Github App Token"
+description: "Action generate Github app token from Vault"
+inputs:
+  vault-addr:
+    description: "vault address"
+    required: true
+  vault-namespace:
+    description: "vault namespace"
+    required: true
+  vault-method:
+    description: "vault auth method"
+    required: false
+    default: "jwt"
+  vault-path:
+    description: "vault auth path"
+    required: false
+    default: "gha"
+  vault-role:
+    description: "vault auth role"
+    required: true
+  vault-kv:
+    description: "vault github secret path"
+    required: false
+    default: "secrets/data/github/ptc-github"
+  app-id-name:
+    description: "key of github app id"
+    required: false
+    default: "app_id"
+  app-private-key-name:
+    description: "key of github private key"
+    required: false
+    default: "app_private_key"
+
+outputs:
+  token:
+    description: "github token"
+    value: ${{ steps.app-token.outputs.token }}
+  user-name:
+    description: "github bot username"
+    value: ${{ steps.generate-commiter.outputs.username }}
+  user-email:
+    description: "github bot email"
+    value: ${{ steps.generate-commiter.outputs.email }}
+
+runs:
+  using: composite
+  steps:
+    - name: Retrieve secret from Vault
+      id: vault
+      uses: hashicorp/vault-action@v3.0.0
+      with:
+        url: ${{ inputs.vault-addr }}
+        method: ${{ inputs.vault-method }}
+        path: ${{ inputs.vault-path }}
+        role: ${{ inputs.vault-role }}
+        namespace: ${{ inputs.vault-namespace }}
+        secrets: |
+          ${{ inputs.vault-kv }} ${{ inputs.app-id-name }} | APP_ID ;
+          ${{ inputs.vault-kv }} ${{ inputs.app-private-key-name }} | APP_PRIVATE_KEY ;
+
+    - name: Generate token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ steps.vault.outputs.APP_ID }}
+        private-key: ${{ steps.vault.outputs.APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+
+    - name: Get Git user id
+      shell: bash
+      id: get-user-id
+      run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+    - name: Generate git commiter
+      shell: bash
+      id: generate-commiter
+      run: |
+        echo "username=${{ steps.app-token.outputs.app-slug }}[bot]" >> "$GITHUB_OUTPUT"
+        echo "email=${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com>" >> "$GITHUB_OUTPUT"
