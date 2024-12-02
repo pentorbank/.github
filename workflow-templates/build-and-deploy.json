@@ -1,5 +1,5 @@
 {
-  "name": "Build",
+  "name": "Build And Deploy",
   "description": "Build container and deploy ArgoCD.",
   "categories": [
     "Continuous integration",
