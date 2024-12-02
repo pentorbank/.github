@@ -1,6 +1,5 @@
 {
   "name": "Build",
-  "creator": "ptc-precharat-chu",
   "description": "Build container and deploy ArgoCD.",
   "categories": [
     "Continuous integration",
